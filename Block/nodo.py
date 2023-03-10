@@ -4,7 +4,8 @@ import datetime
 import hashlib
 import json
 import requests
-from uuid import uuid4
+# from uuid import uuid4
+from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
 
@@ -118,7 +119,8 @@ class Blockchain:
 
 app = Flask(__name__)
 # Creamos una nueva dirreccion y eliminamos los guiones
-node_address = str(uuid4()).replace('-', '')
+# node_address = str(uuid4()).replace('-', '')
+node_address = str(get_mac())
 blockchain = Blockchain()
 
 
