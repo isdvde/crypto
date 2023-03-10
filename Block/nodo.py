@@ -4,7 +4,6 @@ import datetime
 import hashlib
 import json
 import requests
-# from uuid import uuid4
 from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
@@ -119,30 +118,34 @@ class Blockchain:
 
 app = Flask(__name__)
 # Creamos una nueva dirreccion y eliminamos los guiones
-# node_address = str(uuid4()).replace('-', '')
 node_address = str(get_mac())
 blockchain = Blockchain()
 
 
 @app.route("/mine_block", methods=["GET"])
 def mine_block():
-    previous_block = blockchain.get_previous_block()
-    previous_proof = previous_block['proof']
-    proof = blockchain.proof_of_work(previous_proof)
-    previous_hash = blockchain.hash(previous_block)
-    blockchain.add_transaction(
-            sender=node_address, receiver="Ismael Ruiz Ranz", amount=10)
-    block = blockchain.create_block(proof, previous_hash)
-    response = {
-        "message": "Mined Block",
-        "index": block["index"],
-        "timestamp": block["timestamp"],
-        "proof": block["proof"],
-        "previous_hash": block["previous_hash"],
-        "transactions": block["transactions"]
-    }
-    blockchain.dumpData(blockchain.chain)
-    return jsonify(response), 200
+    wallet = request.args.get("wallet")
+    if wallet:
+        previous_block = blockchain.get_previous_block()
+        previous_proof = previous_block['proof']
+        proof = blockchain.proof_of_work(previous_proof)
+        previous_hash = blockchain.hash(previous_block)
+        blockchain.add_transaction(
+                sender=node_address, receiver=wallet, amount=10)
+        block = blockchain.create_block(proof, previous_hash)
+        response = {
+            "message": "Mined Block",
+            "index": block["index"],
+            "timestamp": block["timestamp"],
+            "proof": block["proof"],
+            "previous_hash": block["previous_hash"],
+            "transactions": block["transactions"]
+        }
+        blockchain.dumpData(blockchain.chain)
+        return jsonify(response), 200
+    else:
+        return 'Debe pasar la wallet para minar', 400
+
 
 
 @app.route("/get_chain", methods=["GET"])
