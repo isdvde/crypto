@@ -1,3 +1,5 @@
+import os
+import pickle
 import datetime
 import hashlib
 import json
@@ -9,18 +11,32 @@ from urllib.parse import urlparse
 
 class Blockchain:
     def __init__(self):
-        self.transactions = []  # Las transacciones ejecutada en la cadena
-        # El primer bloque creado
+        self.chain = []
+        self.transactions = []
         self.create_block(proof=1, previous_hash="genesis")
         self.nodes = set()  # No puede haber nodos repetidos
+        self.dataFile = "db.dat"
+        self.folder = os.path.dirname(os.path.abspath(__file__))
+        self.loadData()
+
+    def loadData(self):
+        data = f"{self.folder}/{self.dataFile}"
+        if os.path.getsize(data) != 0:
+            with open(data, "rb") as d:
+                self.chain = pickle.load(d)
+
+    def dumpData(self, data):
+        file = f"{self.folder}/{self.dataFile}"
+        with open(file, "wb") as f:
+            pickle.dump(data, f, -1)
 
     def create_block(self, proof, previous_hash):
         block = {
-                'index': len(self.chain) + 1,
-                'timestamp': str(datetime.datetime.now),
-                'proof': proof,
-                'previous_hash': previous_hash,
-                'transactions': self.transactions
+                "index": len(self.chain) + 1,
+                "timestamp": str(datetime.datetime.now),
+                "proof": proof,
+                "previous_hash": previous_hash,
+                "transactions": self.transactions
                 }
 
         # Vaciamos las transacciones por que ya se incluyeron en el bloque
@@ -116,13 +132,14 @@ def mine_block():
             sender=node_address, receiver="Ismael Ruiz Ranz", amount=10)
     block = blockchain.create_block(proof, previous_hash)
     response = {
-        'message': 'Mined Block',
-        'index': block['index'],
-        'timestamp': block['timestamp'],
-        'proof': block['proof'],
-        'previous_hash': block['previous_hash'],
-        'transactions': block['transactions']
+        "message": "Mined Block",
+        "index": block["index"],
+        "timestamp": block["timestamp"],
+        "proof": block["proof"],
+        "previous_hash": block["previous_hash"],
+        "transactions": block["transactions"]
     }
+    blockchain.dumpData(blockchain.chain)
     return jsonify(response), 200
 
 
@@ -189,4 +206,3 @@ def replace_chain():
 
 
 app.run(host='0.0.0.0', port=5000)
-
