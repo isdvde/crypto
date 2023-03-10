@@ -7,12 +7,15 @@ import requests
 from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 
 
 class Blockchain:
     def __init__(self):
         self.chain = []
         self.transactions = []
+        self.wallets = []
         self.create_block(proof=1, previous_hash="genesis")
         self.nodes = set()  # No puede haber nodos repetidos
         self.dataFile = "db.dat"
@@ -23,12 +26,29 @@ class Blockchain:
         data = f"{self.folder}/{self.dataFile}"
         if os.path.getsize(data) != 0:
             with open(data, "rb") as d:
-                self.chain = pickle.load(d)
+                self.chain, self.wallets = pickle.load(d)
 
     def dumpData(self, data):
         file = f"{self.folder}/{self.dataFile}"
         with open(file, "wb") as f:
-            pickle.dump(data, f, -1)
+            pickle.dump([data, self.wallets], f, -1)
+
+    def createWallet(self):
+        keyPair = rsa.generate_private_key(
+                public_exponent=65537, key_size=512)
+        pk = keyPair.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption()).decode('utf-8')
+        pub = keyPair.public_key().public_bytes(
+            serialization.Encoding.OpenSSH,
+            serialization.PublicFormat.OpenSSH).decode('utf-8')
+        self.addWallet(pub)
+        return pk, pub
+
+    def addWallet(self, pub):
+        self.wallets.append(pub)
+
 
     def create_block(self, proof, previous_hash):
         block = {
@@ -208,6 +228,16 @@ def replace_chain():
             "new_chain": blockchain.chain
         }
     return jsonify(response), 200
+
+
+@app.route("/create_wallet", methods=["GET"])
+def createWallet():
+    pk, pub = blockchain.createWallet()
+    response = {"Public Key": pub, "Private Key": pk}
+    return jsonify(response), 200
+
+
+
 
 
 app.run(host='0.0.0.0', port=5000)
