@@ -3,6 +3,7 @@ import pickle
 import datetime
 import hashlib
 import json
+import base64
 import requests
 from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
@@ -23,10 +24,14 @@ class Blockchain:
         self.loadData()
 
     def loadData(self):
-        data = f"{self.folder}/{self.dataFile}"
-        if os.path.getsize(data) != 0:
-            with open(data, "rb") as d:
-                self.chain, self.wallets = pickle.load(d)
+        # data = f"{self.folder}/{self.dataFile}"
+        data = os.path.join(self.folder, self.dataFile)
+        if os.path.isfile(data):
+            if os.path.getsize(data) != 0:
+                with open(data, "rb") as d:
+                    self.chain, self.wallets = pickle.load(d)
+        else:
+            open(data, "w+")
 
     def dumpData(self, data):
         file = f"{self.folder}/{self.dataFile}"
@@ -43,12 +48,24 @@ class Blockchain:
         pub = keyPair.public_key().public_bytes(
             serialization.Encoding.OpenSSH,
             serialization.PublicFormat.OpenSSH).decode('utf-8')
+
+        pk = self.base64Enc(pk)
+        pub = self.base64Enc(pub)
         self.addWallet(pub)
         return pk, pub
 
     def addWallet(self, pub):
         self.wallets.append(pub)
 
+    def base64Enc(self, data):
+        data_bytes = data.encode('ascii')
+        base64_bytes = base64.b64encode(data_bytes)
+        return base64_bytes.decode('ascii')
+
+    def base64Dec(self, data):
+        base64_bytes = data.encode('ascii')
+        data_bytes = base64.b64decode(base64_bytes)
+        return data_bytes.decode('ascii')
 
     def create_block(self, proof, previous_hash):
         block = {
