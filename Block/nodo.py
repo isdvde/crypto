@@ -9,6 +9,7 @@ from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
 import rsa
+import time
 
 
 class Blockchain:
@@ -40,7 +41,7 @@ class Blockchain:
         pkEnc = pk.save_pkcs1('PEM').decode('utf-8')
         pubEnc = self.base64Enc(pub.save_pkcs1('PEM').decode('utf-8'))
         sign = rsa.encrypt(self.splitPub(pubEnc)[0].encode('utf-8'), pub)
-        wallet = {"pub": pubEnc, "sign": sign}
+        wallet = {"pub": pubEnc, "sign": sign, "balance": 0}
         pk = self.base64Enc(pkEnc)
         self.addWallet(wallet)
         return pk, wallet['pub']
@@ -74,9 +75,6 @@ class Blockchain:
     def addWallet(self, wallet):
         self.wallets.append(wallet)
 
-    def findWallet(self, wallet):
-        return True if wallet in self.wallets else False
-
     def getWallets(self):
         return self.wallets
 
@@ -93,7 +91,7 @@ class Blockchain:
     def create_block(self, proof, previous_hash):
         block = {
                 "index": len(self.chain) + 1,
-                "timestamp": str(datetime.datetime.now),
+                "timestamp": str(datetime.datetime.now()),
                 "proof": proof,
                 "previous_hash": previous_hash,
                 "transactions": self.transactions
@@ -111,6 +109,7 @@ class Blockchain:
         return self.chain[-1]
 
     def proof_of_work(self, previous_proof):
+        start = time.process_time()
         new_proof = 1
         check_proof = False
         while check_proof is False:
@@ -120,7 +119,7 @@ class Blockchain:
                 check_proof = True
             else:
                 new_proof += 1
-        return new_proof
+        return new_proof, time.process_time() - start
 
     def hash(self, block):
         encoded_block = json.dumps(block, sort_keys=True).encode()
@@ -151,6 +150,18 @@ class Blockchain:
         previous_block = self.get_previous_block()
         # En que bloque sera incluida la transaccion
         return previous_block["index"] + 1
+    
+    def makeTransaction(self, transactions):
+        for t in transactions:
+            if self.is_wallet_valid(t['receiver']):
+                for w in self.wallets:
+                    if w['pub'] == t['receiver']:
+                        w['balance'] += t['amount']
+
+            if self.is_wallet_valid(t['sender']):
+                for w in self.wallets:
+                    if w['pub'] == t['sender']:
+                        w['balance'] -= t['amount']
 
     def add_node(self, address):
         parsed_url = urlparse(address)
@@ -188,10 +199,10 @@ def mine_block():
     if blockchain.is_wallet_valid(wallet):
         previous_block = blockchain.get_previous_block()
         previous_proof = previous_block['proof']
-        proof = blockchain.proof_of_work(previous_proof)
+        proof, time = blockchain.proof_of_work(previous_proof)
         previous_hash = blockchain.hash(previous_block)
         blockchain.add_transaction(
-                sender=node_address, receiver=wallet, amount=10)
+                sender=node_address, receiver=wallet, amount=(time/proof)/time)
         block = blockchain.create_block(proof, previous_hash)
         response = {
                 "message": "Mined Block",
@@ -199,8 +210,8 @@ def mine_block():
                 "timestamp": block["timestamp"],
                 "proof": block["proof"],
                 "previous_hash": block["previous_hash"],
-                "transactions": block["transactions"]
-                }
+                "transactions": block["transactions"]}
+        blockchain.makeTransaction(block['transactions'])
         blockchain.dumpData(blockchain.chain, blockchain.wallets)
         return jsonify(response), 200
     else:
@@ -229,13 +240,16 @@ def is_valid():
 @app.route("/add_transaction", methods=["POST"])
 def add_transaction():
     json = request.get_json()
-    transaction_keys = ['sender', 'receiver', 'amount']
+    transaction_keys = ['sender', 'receiver', 'amount', 'key']
     if not all(key in json for key in transaction_keys):
         return 'Faltan algunos elementos de la transacción', 400
-    index = blockchain.add_transaction(
-            json['sender'], json['receiver'], json['amount'])
-    response = {'message': f'La transacción será añadida al bloque {index}'}
-    return jsonify(response), 201
+    if blockchain.rsaCheckSign(json['key'], json['sender']):
+        index = blockchain.add_transaction(
+                json['sender'], json['receiver'], json['amount'])
+        response = {'message': f'La transacción será añadida al bloque {index}'}
+        return jsonify(response), 201
+    else:
+        return "Wallet no valida", 400
 
 
 @app.route("/connect_node", methods=["POST"])
@@ -275,6 +289,13 @@ def createWallet():
     response = {"Wallet": wallet, "Private Key": pk}
     blockchain.dumpData(blockchain.chain, blockchain.wallets)
     return jsonify(response), 200
+
+@app.route("/get_wallets", methods=["GET"])
+def getWallets():
+    wallets = []
+    for w in blockchain.wallets:
+        wallets.append({"wallet": w['pub'], "balance": w['balance']})
+    return jsonify(wallets) 
 
 
 # @app.route("/check_wallet", methods=["POST"])
