@@ -8,8 +8,6 @@ import requests
 from uuid import getnode as get_mac
 from flask import Flask, jsonify, request
 from urllib.parse import urlparse
-# from cryptography.hazmat.primitives.asymmetric import rsa
-# from cryptography.hazmat.primitives import serialization
 import rsa
 
 
@@ -27,75 +25,50 @@ class Blockchain:
     def loadData(self):
         data = os.path.join(self.folder, self.dataFile)
         if os.path.isfile(data):
-            print(f"Entro a cargar {data}")
-            # if os.path.getsize(data) != 0:
-            print(os.stat(data).st_size)
-            if os.stat(data).st_size != 0:
-                print(f"Entro a ver {data}")
+            if os.path.getsize(data) != 0:
+            # if os.stat(data).st_size != 0:
                 with open(data, "rb") as d:
                     self.chain, self.wallets = pickle.load(d)
 
     def dumpData(self, data, wallets):
-        file = f"{self.folder}/{self.dataFile}"
-        # file = os.path.join(self.folder, self.dataFile)
+        file = os.path.join(self.folder, self.dataFile)
         with open(file, "wb") as f:
             pickle.dump([data, wallets], f, -1)
 
     def createWallet(self):
-        # keyPair = rsa.generate_private_key(
-        #         public_exponent=7, key_size=512)
-        # pk = keyPair.private_bytes(
-        #         serialization.Encoding.PEM,
-        #         serialization.PrivateFormat.PKCS8,
-        #         serialization.NoEncryption()).decode('utf-8')
-        # pub = keyPair.public_key().public_bytes(
-        #     serialization.Encoding.OpenSSH,
-        #     serialization.PublicFormat.OpenSSH).decode('utf-8')
-        #
-        # pk = self.base64Enc(pk)
-        # pub = self.base64Enc(pub)
-        # self.addWallet(pub)
-
         pub, pk = rsa.newkeys(512)
         pkEnc = pk.save_pkcs1('PEM').decode('utf-8')
-        # encData = rsa.encrypt(pkDec, pub)
         pubEnc = self.base64Enc(pub.save_pkcs1('PEM').decode('utf-8'))
-        # wallet = self.base64Enc(encData.decode('utf-8'))
-        sign = self.rsaSign(pkEnc, pk)
-        # sign = rsa.encrypt(pkEnc, pub).decode('utf-8')
-        # sign = self.rsaEnc(pub, pkEnc)
+        sign = rsa.encrypt(self.splitPub(pubEnc)[0].encode('utf-8'), pub)
         wallet = {"pub": pubEnc, "sign": sign}
-        # print(wallet)
-        # print()
         pk = self.base64Enc(pkEnc)
         self.addWallet(wallet)
         return pk, wallet['pub']
 
-    def rsaEnc(self, pub, data):
-        result = []
-        for n in range(0, len(data), 53):
-            part = data[n:n+53]
-            result.append(rsa.encrypt(part.encode("ascii"), pub))
-        return b''.join(result)
-
-    def rsaSign(self, data, pk):
-        return rsa.sign(data.encode('ascii'), pk, 'SHA-1')
+    def splitPub(self, pub):
+        string_chunks = []
+        for start in range(0, len(pub), 50):
+            string_chunks.append(pub[start: start + 50])
+        return string_chunks
 
     def is_wallet_valid(self, wallet):
-        print(self.wallets)
         for w in self.wallets:
-            print(w['pub'])
-            return wallet == w['pub']
+            if wallet == w['pub']:
+                return True
         return False
 
-    def rsaCheckSign(self, pk):
-        pkOrg = self.base64Dec(pk)
-        for wallet in self.wallets:
-            pub = self.base64Dec(wallet['pub']).encode('utf-8')
-            pub = rsa.PublicKey.load_pkcs1(pub)
-            if rsa.verify(
-                    pkOrg.encode('ascii'), wallet['sign'], wallet['pub']) == 'SHA-1':
-                return True
+    def rsaCheckSign(self, pk, wallet):
+        pkOrg = self.base64Dec(pk).encode('utf-8')
+        pk = rsa.PrivateKey.load_pkcs1(pkOrg)
+        for w in self.wallets:
+            if w['pub'] == wallet:
+                pub = self.splitPub(w['pub'])[0].encode('utf-8')
+                try:
+                    data = rsa.decrypt(w['sign'], pk).decode('utf-8')
+                    if data.encode('utf-8') == pub:
+                        return True
+                except:
+                    pass
         return False
 
     def addWallet(self, wallet):
@@ -304,23 +277,18 @@ def createWallet():
     return jsonify(response), 200
 
 
-@app.route("/get_wallets", methods=["GET"])
-def getWallets():
-    return jsonify(blockchain.getWallets()), 200
-
-
-@app.route("/check_wallet", methods=["POST"])
-def check_wallet():
-    json = request.get_json()
-    transaction_keys = ['wallet', 'key']
-    if not all(key in json for key in transaction_keys):
-        return 'Faltan algunos elementos de la transacción', 400
-    if blockchain.rsaCheckSign(json['key']):
-        response = {'message': 'La transacción será añadida al bloque {inde'}
-    else:
-        response = {'message': 'La transacción'}
-
-    return jsonify(response), 201
+# @app.route("/check_wallet", methods=["POST"])
+# def check_wallet():
+#     json = request.get_json()
+#     transaction_keys = ['wallet', 'key']
+#     if not all(key in json for key in transaction_keys):
+#         return 'Faltan algunos elementos de la transacción', 400
+#     if blockchain.rsaCheckSign(json['key'], json['wallet']):
+#         response = {'message': 'La transacción será añadida al bloque {inde'}
+#     else:
+#         response = {'message': 'La transacción'}
+#
+#     return jsonify(response), 201
 
 
 
