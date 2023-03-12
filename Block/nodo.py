@@ -290,26 +290,32 @@ def createWallet():
     blockchain.dumpData(blockchain.chain, blockchain.wallets)
     return jsonify(response), 200
 
-@app.route("/get_wallets", methods=["GET"])
-def getWallets():
-    wallets = []
-    for w in blockchain.wallets:
-        wallets.append({"wallet": w['pub'], "balance": w['balance']})
-    return jsonify(wallets) 
+# @app.route("/get_wallets", methods=["GET"])
+# def getWallets():
+#     wallets = []
+#     for w in blockchain.wallets:
+#         wallets.append({"wallet": w['pub'], "balance": w['balance']})
+#     return jsonify(wallets) 
 
 
-# @app.route("/check_wallet", methods=["POST"])
-# def check_wallet():
-#     json = request.get_json()
-#     transaction_keys = ['wallet', 'key']
-#     if not all(key in json for key in transaction_keys):
-#         return 'Faltan algunos elementos de la transacción', 400
-#     if blockchain.rsaCheckSign(json['key'], json['wallet']):
-#         response = {'message': 'La transacción será añadida al bloque {inde'}
-#     else:
-#         response = {'message': 'La transacción'}
-#
-#     return jsonify(response), 201
+@app.route("/check_wallet", methods=["POST"])
+def check_wallet():
+    def find(wallet):
+        for w in blockchain.wallets:
+            if w['pub'] == wallet:
+                return w
+    json = request.get_json()
+    transaction_keys = ['wallet', 'key']
+    if not all(key in json for key in transaction_keys):
+        return 'Faltan algunos elementos de la wallet', 400
+    if blockchain.rsaCheckSign(json['key'], json['wallet']):
+        wallet = find(json['wallet'])
+        response = {
+                'wallet': wallet['pub'],
+                'balance': wallet['balance']}
+    else:
+        response = {'message': 'Wallet no valida'}
+    return jsonify(response), 201
 
 
 
