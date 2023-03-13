@@ -119,7 +119,8 @@ class Blockchain:
                 check_proof = True
             else:
                 new_proof += 1
-        return new_proof, time.process_time() - start
+        end = time.process_time()
+        return new_proof, end - start
 
     def hash(self, block):
         encoded_block = json.dumps(block, sort_keys=True).encode()
