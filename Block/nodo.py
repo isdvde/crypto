@@ -200,9 +200,10 @@ def mine_block():
         previous_block = blockchain.get_previous_block()
         previous_proof = previous_block['proof']
         proof, time = blockchain.proof_of_work(previous_proof)
+        print(time)
         previous_hash = blockchain.hash(previous_block)
         blockchain.add_transaction(
-                sender=node_address, receiver=wallet, amount=(time/proof)/time)
+                sender=node_address, receiver=wallet, amount=(time/proof))
         block = blockchain.create_block(proof, previous_hash)
         response = {
                 "message": "Mined Block",
